@@ -1,0 +1,22 @@
+---
+# file: playbook.yml
+#
+# Use this file to install bigsdb on the gvl
+#
+# To install the software, use this role via the following command (make sure
+# you provided an instance IP in ``inventory/builders``):
+#
+#   % ansible-playbook -i hosts playbook.yml
+#
+- hosts: bigsdb_host
+  remote_user: ubuntu
+  sudo: yes
+  tasks:
+      - include_vars: defaults/main.yml
+      - include: tasks/main.yml
+  handlers:
+      - name: restart apache2
+        service: name=apache2 state=restarted
+
+      - name: restart nginx
+        service: name=nginx state=restarted

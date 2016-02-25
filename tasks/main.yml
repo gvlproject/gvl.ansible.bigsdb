@@ -1,0 +1,4 @@
+---
+# Ansible script to run all tasks to deploy bigsdb to the gvl
+
+  - include: install_bigsdb.yml

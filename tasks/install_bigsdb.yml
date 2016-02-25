@@ -1,0 +1,107 @@
+#
+# Script to install bigsdb
+#
+# based on http://bigsdb.readthedocs.org/
+
+- name: Create bigsdb installation directory
+  file: path="{{ bigsdb_root }}" state=directory
+  sudo: yes
+  sudo_user: root
+
+- name: Download bigsdb
+  get_url: url="{{ bigsdb_url }}" dest="{{ bigsdb_root }}/bigsdb.tgz"
+  sudo: yes
+  sudo_user: root
+
+- name: Unpack bigsdb
+  unarchive: src="{{ bigsdb_root }}/bigsdb.tgz" dest="{{ bigsdb_root }}" copy=no
+  sudo: yes
+  sudo_user: root
+
+#
+# see http://bigsdb.readthedocs.org/en/latest/dependencies.html
+# we assume the following are included: perl5.1
+# notes: blast install based on http://www.blopig.com/blog/2014/04/quick-standalone-blast-setup-for-ubuntu-linux/
+#
+- name: Install bigsdb required dependencies
+  apt: pkg="{{ item }}" state=latest
+  with_items:
+    - apache2
+    - python-software-properties
+    - software-properties-common
+    - postgresql-9.3
+    - postgresql-client-9.3
+    - postgresql-contrib-9.3
+    - ncbi-blast+
+    - emboss
+    - exonerate
+    - xvfb
+    - cpanminus
+  sudo: yes
+  sudo_user: root
+
+#
+# install BioPerl for bigsdb
+#
+- name: Install bigsdb required perl modules
+  cpanm: name="{{ item }}" notest=yes
+  with_items:
+    - Log::Log4perl
+    - BioPerl
+  sudo: yes
+  sudo_user: root
+
+#
+# setup apache virtual host
+#
+- name: set apache listen port
+  replace: dest=/etc/apache2/ports.conf regexp="^Listen 80$" replace="Listen {{ bigsdb_port }}" backup=yes
+  notify:
+    - restart apache2
+
+- name: set apache virtualhost listen port
+#  replace: dest=/etc/apache2/sites-available/000-default.conf regexp="^<VirtualHost \*:80>$" replace="<VirtualHost *:{{ bigsdb_port }}>" backup=yes
+  template: src=000-default.conf
+            dest=/etc/apache2/sites-available/000-default.conf
+  notify:
+    - restart apache2
+
+- name: enable cgi on apache2
+  apache2_module: state=present name=cgi
+#
+# setup nginx proxy
+#
+- name: install nginx proxy
+  template: src=site.nginx.conf 
+            dest=/etc/nginx/sites-enabled/bigsdb.locations
+  notify:
+    - restart nginx
+  tags: 
+    - nginx
+
+#
+# install bigsdb
+#
+- name: install bigsdb by creating cgi-bin symlinks 
+  file: src={{ bigsdb_root }}/BIGSdb-v_1.12.2/{{ item.src }} dest=/usr/lib/cgi-bin/{{ item.dest }} state=link
+  with_items:
+    - { src: bigsdb.pl, dest: bigsdb.pl }
+    - { src: bigsdb.pl, dest: bigscurate.pl }
+
+- name: install bigsdb by creating lib symlinks 
+  file: src={{ bigsdb_root }}/BIGSdb-v_1.12.2/lib dest=/usr/local/lib/BIGSdb state=link
+
+- name: create web directory
+  file: path=/var/www/html/bigsdb state=directory
+
+- name: install bigsdb by creating js symlinks 
+  file: src={{ bigsdb_root }}/BIGSdb-v_1.12.2/{{ item.src }} dest=/var/www/html/bigsdb/{{ item.dest }} state=link
+  with_items:
+    - { src: javascript, dest: javascript }
+    - { src: css, dest: css }
+    - { src: fonts, dest: fonts }
+    - { src: images, dest: images }
+
+- name: install bigsdb by creating configuration symlinks 
+  file: src={{ bigsdb_root }}/BIGSdb-v_1.12.2/conf dest=/etc/bigsdb state=link
+
